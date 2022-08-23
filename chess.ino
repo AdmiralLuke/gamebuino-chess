@@ -1,17 +1,21 @@
 #include <Gamebuino-Meta.h>
-//#include <map>
 
+enum class Team
+{
+  NONE,
+  BLACK,
+  WHITE
+};
 
-int player = 0;
-
-
-struct Pos {
+struct Pos
+{
   int x;
   int y;
 };
 
-enum figure {
-  NON,
+enum FigureType
+{
+  NONE,
   KING,
   QUEEN,
   ROOK,
@@ -20,115 +24,180 @@ enum figure {
   BISHOP
 };
 
-struct Player {
-  int x;
-  int y;
-  Color color;
-  figure selected;
+struct Figure
+{
+  FigureType type;
+  Team owner;
 };
 
-Player players[2];
+struct Player
+{
+  Pos selected;
+  Team team;
+};
 
-figure board[2][8][8];
+struct
+{
+  Player black, white;
+} players;
+Figure board[8][8] = {};
+Figure *active;
+Team player = Team::WHITE;
 
-// std::map<Pos,figure> field {{}} 
-
-void generateField() {
-  for (int y = 0; y < 8; y++) {
-    for(int x = 0; x < 8; x++) {
+void drawField()
+{
+  for (int y = 0; y < 8; y++)
+  {
+    for (int x = 0; x < 8; x++)
+    {
       bool white = (x + y) % 2 == 0;
       Color color = white ? WHITE : BLACK;
       gb.display.setColor(color);
-      gb.display.fillRect(x*8 + 8,y*8,8,8);
+      gb.display.fillRect(x * 8 + 8, y * 8, 8, 8);
     }
   }
 }
 
-void initBoard() {
-  int z = 0;
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 8; x++) {
-      if (y >= 3) {
-        z = 1;
-      } 
-      if (y == 1 || y == 6) {
-        board[z][x][y] = PAWN;
+void initBoard()
+{
+  for (int y = 0; y < 8; y++)
+  {
+    for (int x = 0; x < 8; x++)
+    {
+      Team owner = y < 3 ? Team::BLACK : Team::WHITE;
+      if (y == 1 || y == 6)
+      {
+        board[x][y] = {.type = PAWN, .owner = owner};
+      }
+      else if (y == 0 || y == 7)
+      {
+        if (x == 0 || x == 7)
+        {
+          board[x][y] = {.type = ROOK, .owner = owner};
+        }
+        if (x == 1 || x == 6)
+        {
+          board[x][y] = {.type = KNIGHT, .owner = owner};
+        }
+        if (x == 2 || x == 5)
+        {
+          board[x][y] = {.type = BISHOP, .owner = owner};
+        }
+        if (x == 3)
+        {
+          board[x][y] = {.type = QUEEN, .owner = owner};
+        }
+        if (x == 4)
+        {
+          board[x][y] = {.type = KING, .owner = owner};
+        }
+      } else {
+        board[x][y] = {.type = NONE, .owner = Team::NONE};
       }
     }
   }
 }
 
-void movePawn(int x, int y) {
-  
+void movePawn(int x, int y)
+{
 }
 
-void displayFigures() {
-  int z = 0;
-  for (int y = 0; y < 8; y++) {
-    for (int x = 0; x < 8; x++) {
-      if (y >= 3) {
-        z = 1;
-      }
-      if (board[z][x][y] == PAWN) {
+void drawFigures()
+{
+  for (int y = 0; y < 8; y++)
+  {
+    for (int x = 0; x < 8; x++)
+    {
+      if (board[x][y].type == PAWN)
+      {
         gb.display.setColor(PURPLE);
+        gb.display.fillRect(x * 8 + 12, y * 8 + 4, 2, 2);
+      }
+      else if (board[x][y].type != NONE)
+      {
+        gb.display.setColor(ORANGE);
         gb.display.fillRect(x * 8 + 12, y * 8 + 4, 2, 2);
       }
     }
   }
 }
 
-void setup() {
-  gb.begin();
-  players[0] = {
-    .x = 0,
-    .y = 0,
-    .color = RED,
-  };
-  players[1] = {
-    .x = 0,
-    .y = 7,
-    .color = YELLOW,
-  };
+void initPlayers()
+{
+  players = {
+      .black = {.selected = {.x = 3, .y = 0}, .team = Team::BLACK},
+      .white = {.selected = {.x = 3, .y = 7}, .team = Team::WHITE}};
+}
 
+void setup()
+{
+  gb.begin();
+  initPlayers();
   initBoard();
 }
 
-void loop() {
-  while(!gb.update());
+void loop()
+{
+  while (!gb.update())
+    ;
   gb.display.clear();
-  generateField();
-  gb.display.drawRect(8,0,65,65);
+  drawField();
+  gb.display.drawRect(8, 0, 65, 65);
   // 64 x 80
 
-  // Spieler wechseln
-  if (gb.buttons.pressed(BUTTON_B)) {
-      player += 1;
-      player %= 2;
+  // change player
+  if (gb.buttons.pressed(BUTTON_B))
+  {
+    player = player == Team::WHITE ? Team::BLACK : Team::WHITE; // toggle player
   }
 
-  // Hoch
-  if (gb.buttons.pressed(BUTTON_LEFT)) {
-    if (players[player].x > 0) {
-      players[player].x -= 1;
+  Player &current = player == Team::WHITE ? players.white : players.black;
+  Pos &selectedPos = current.selected;
+
+  if (active == nullptr)
+  {
+    // controls
+    if (gb.buttons.pressed(BUTTON_LEFT))
+    {
+      if (selectedPos.x > 0)
+      {
+        selectedPos.x--;
+      }
     }
-  } else if (gb.buttons.pressed(BUTTON_RIGHT)) {
-    if (players[player].x < 7) {
-      players[player].x += 1;
+    else if (gb.buttons.pressed(BUTTON_RIGHT))
+    {
+      if (selectedPos.x < 7)
+      {
+        selectedPos.x++;
+      }
     }
-  } else if (gb.buttons.pressed(BUTTON_UP)) {
-    if (players[player].y > 0) {
-      players[player].y -= 1;
+    else if (gb.buttons.pressed(BUTTON_UP))
+    {
+      if (selectedPos.y > 0)
+      {
+        selectedPos.y--;
+      }
     }
-  } else if (gb.buttons.pressed(BUTTON_DOWN)) {
-    if (players[player].y < 7) {
-      players[player].y += 1;
+    else if (gb.buttons.pressed(BUTTON_DOWN))
+    {
+      if (selectedPos.y < 7)
+      {
+        selectedPos.y++;
+      }
+    }
+    // figure chosing
+    if (gb.buttons.pressed(BUTTON_A))
+    {
+      Figure &tmpFig = board[selectedPos.x][selectedPos.y];
+      if (tmpFig.owner == current.team)
+      {
+        active = &tmpFig;
+      }
     }
   }
 
-  displayFigures();
-  gb.display.setColor(players[player].color);
-  gb.display.drawCircle(players[player].x*8 + 12,players[player].y*8 + 4,2);
+  // draw functions for player and figures
+  drawFigures();
+  gb.display.setColor(current.team == Team::WHITE ? WHITE : BLACK);
+  gb.display.drawCircle(current.selected.x * 8 + 12, current.selected.y * 8 + 4, 2);
 }
-
-
-
