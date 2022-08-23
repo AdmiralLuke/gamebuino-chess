@@ -27,7 +27,7 @@ struct Player {
   figure selected;
 };
 
-Player* players = (Player *)malloc(sizeof(Player) * 2);
+Player players[2];
 
 figure board[2][8][8];
 
